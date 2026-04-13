@@ -3,6 +3,11 @@ from openai import OpenAI
 from telegram import Update
 from telegram.ext import ApplicationBuilder, MessageHandler, CommandHandler, filters, ContextTypes
 
+TOKEN = import os
+from openai import OpenAI
+from telegram import Update
+from telegram.ext import ApplicationBuilder, MessageHandler, CommandHandler, filters, ContextTypes
+
 TOKEN = os.getenv("TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
@@ -11,25 +16,25 @@ client = OpenAI(api_key=OPENAI_API_KEY)
 user_sessions = {}
 
 SYSTEM_PROMPT = """
-�� � ��������-�������� � ��������. 
-��������� ������������� � ������ ���������.
+Ты — гештальт-терапевт и психолог. 
+Работаешь индивидуально с каждым человеком.
 
-�������� ������:
-- ������� ������, �������� �������
-- ����������� �� ����� � ������
-- ������� �������� �������� ���� ������� � �����������
-- �� ����� ������� ����� � ������� �������� ��������
-- ������� ������ � �� ����
-- ���� �� ����� 3-4 ����������� �� ���
-- ������� �� �������
+Принципы работы:
+- Задавай точные, глубокие вопросы
+- Фокусируйся на здесь и сейчас
+- Помогай человеку осознать свои чувства и потребности
+- Не давай советов сразу — сначала исследуй ситуацию
+- Отвечай кратко и по сути
+- Пиши не более 3-4 предложений за раз
+- Никогда не осуждай
 """
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     user_sessions[user_id] = []
     await update.message.reply_text(
-        "������. � �����, ����� ������ ���� ����������� � ���, ��� ����������.\n\n"
-        "� ��� �� ������?"
+        "Привет. Я здесь, чтобы помочь тебе разобраться в том, что происходит.\n\n"
+        "С чем ты пришёл?"
     )
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -65,14 +70,87 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def reset(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     user_sessions[user_id] = []
-    await update.message.reply_text("������ �������. � ��� �� ������?")
+    await update.message.reply_text("Начнём сначала. С чем ты пришёл?")
 
 def main():
     app = ApplicationBuilder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("reset", reset))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-    print("��� �������...")
+    print("Бот запущен...")
+    app.run_polling()
+
+if __name__ == "__main__":
+    main()
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+
+client = OpenAI(api_key=OPENAI_API_KEY)
+
+user_sessions = {}
+
+SYSTEM_PROMPT = """
+Òû — ãåøòàëüò-òåðàïåâò è ïñèõîëîã. 
+Ðàáîòàåøü èíäèâèäóàëüíî ñ êàæäûì ÷åëîâåêîì.
+
+Ïðèíöèïû ðàáîòû:
+- Çàäàâàé òî÷íûå, ãëóáîêèå âîïðîñû
+- Ôîêóñèðóéñÿ íà çäåñü è ñåé÷àñ
+- Ïîìîãàé ÷åëîâåêó îñîçíàòü ñâîè ÷óâñòâà è ïîòðåáíîñòè
+- Íå äàâàé ñîâåòîâ ñðàçó — ñíà÷àëà èññëåäóé ñèòóàöèþ
+- Îòâå÷àé êðàòêî è ïî ñóòè
+- Ïèøè íå áîëåå 3-4 ïðåäëîæåíèé çà ðàç
+- Íèêîãäà íå îñóæäàé
+"""
+
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    user_sessions[user_id] = []
+    await update.message.reply_text(
+        "Ïðèâåò. ß çäåñü, ÷òîáû ïîìî÷ü òåáå ðàçîáðàòüñÿ â òîì, ÷òî ïðîèñõîäèò.\n\n"
+        "Ñ ÷åì òû ïðèø¸ë?"
+    )
+
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    user_text = update.message.text
+
+    if user_id not in user_sessions:
+        user_sessions[user_id] = []
+
+    user_sessions[user_id].append({
+        "role": "user",
+        "content": user_text
+    })
+
+    history = user_sessions[user_id][-20:]
+
+    response = client.chat.completions.create(
+        model="gpt-4",
+        messages=[{"role": "system", "content": SYSTEM_PROMPT}] + history,
+        temperature=0.7,
+        max_tokens=300
+    )
+
+    reply = response.choices[0].message.content
+
+    user_sessions[user_id].append({
+        "role": "assistant",
+        "content": reply
+    })
+
+    await update.message.reply_text(reply)
+
+async def reset(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    user_sessions[user_id] = []
+    await update.message.reply_text("Íà÷í¸ì ñíà÷àëà. Ñ ÷åì òû ïðèø¸ë?")
+
+def main():
+    app = ApplicationBuilder().token(TOKEN).build()
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("reset", reset))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    print("Áîò çàïóùåí...")
     app.run_polling()
 
 if __name__ == "__main__":
